@@ -1,5 +1,5 @@
 //
-// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2025
+// Copyright Aliaksei Levin (levlam@telegram.org), Arseny Smirnov (arseny30@gmail.com) 2014-2026
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -156,6 +156,7 @@ class Client final : public WebhookActor::Callback {
   class JsonSuggestedPostRefunded;
   class JsonEntity;
   class JsonVectorEntities;
+  class JsonRichMessageButton;
   class JsonRichText;
   class JsonRichBlock;
   class JsonRichBlocks;
@@ -247,7 +248,9 @@ class Client final : public WebhookActor::Callback {
   class JsonManagedBotCreated;
   class JsonManagedBotUpdated;
   class JsonCommunityChatAdded;
+  class JsonCommunityChatJoined;
   class JsonBotSubscriptionUpdated;
+  class JsonMessageGenerationStopped;
   class JsonGiveawayCreated;
   class JsonGiveaway;
   class JsonGiveawayWinners;
@@ -370,6 +373,12 @@ class Client final : public WebhookActor::Callback {
     object_ptr<td_api::inputTextQuote> quote;
     int32 checklist_task_id = 0;
     td::string poll_option_id;
+  };
+
+  struct EphemeralMessageParameters {
+    int64 receiver_user_id = 0;
+    int64 callback_query_id = 0;
+    bool replace_callback_query_message = false;
   };
 
   struct UserInfo;
@@ -521,17 +530,24 @@ class Client final : public WebhookActor::Callback {
 
   static td::Result<InputReplyParameters> get_reply_parameters(td::JsonValue &&value);
 
-  static td::Result<object_ptr<td_api::ButtonStyle>> get_button_style(td::Result<td::string> r_style);
+  static td::Result<EphemeralMessageParameters> get_ephemeral_message_parameters(const Query *query);
+
+  static td::Result<EphemeralMessageParameters> get_ephemeral_message_parameters(td::JsonValue &&value);
+
+  static td::Result<object_ptr<td_api::ButtonStyle>> get_button_style(td::Result<td::string> r_style,
+                                                                      bool for_rich_message);
 
   static td::Result<object_ptr<td_api::KeyboardButtonType>> get_keyboard_button_type(td::JsonObject &object);
 
   static td::Result<object_ptr<td_api::keyboardButton>> get_keyboard_button(td::JsonValue &&button);
 
   static td::Result<object_ptr<td_api::InlineKeyboardButtonType>> get_inline_keyboard_button_type(
-      td::JsonObject &object, BotUserIds &bot_user_ids);
+      td::JsonObject &object, BotUserIds *bot_user_ids);
 
   static td::Result<object_ptr<td_api::inlineKeyboardButton>> get_inline_keyboard_button(td::JsonValue &&button,
                                                                                          BotUserIds &bot_user_ids);
+
+  static td::Result<object_ptr<td_api::inlineButton>> get_inline_button(td::JsonValue &&button);
 
   static td::Result<object_ptr<td_api::ReplyMarkup>> get_reply_markup(const Query *query, BotUserIds &bot_user_ids);
 
@@ -1074,22 +1090,22 @@ class Client final : public WebhookActor::Callback {
 
   void fail_query_flood_limit_exceeded(PromisedQueryPtr &&query);
 
-  void fail_query_conflict(td::Slice message, PromisedQueryPtr &&query);
+  void fail_query_conflict(td::CSlice message, PromisedQueryPtr &&query);
 
   struct ClosingError {
     int code;
     int retry_after;
-    td::Slice message;
+    td::CSlice message;
   };
   ClosingError get_closing_error();
 
   static int get_retry_after_time(td::Slice error_message);
 
-  static void fail_query_with_error(PromisedQueryPtr query, int32 error_code, td::Slice error_message,
-                                    td::Slice default_message = td::Slice());
+  static void fail_query_with_error(PromisedQueryPtr query, int32 error_code, td::CSlice error_message,
+                                    td::CSlice default_message = td::CSlice());
 
   static void fail_query_with_error(PromisedQueryPtr &&query, object_ptr<td_api::error> error,
-                                    td::Slice default_message = td::Slice());
+                                    td::CSlice default_message = td::CSlice());
 
   static bool is_special_error_code(int32 error_code);
 
@@ -1298,7 +1314,7 @@ class Client final : public WebhookActor::Callback {
 
   static td::Result<object_ptr<td_api::StickerType>> get_sticker_type(td::Slice type);
 
-  static td::CSlice get_callback_data(const object_ptr<td_api::InlineKeyboardButtonType> &type);
+  static td::CSlice get_callback_data(const td_api::InlineKeyboardButtonType *type);
 
   static bool are_equal_suggested_post_prices(const td_api::SuggestedPostPrice *lhs,
                                               const td_api::SuggestedPostPrice *rhs);
@@ -1345,6 +1361,15 @@ class Client final : public WebhookActor::Callback {
   static void json_store_permissions(td::JsonObjectScope &object, const td_api::chatPermissions *permissions);
 
   static void json_store_rarity(td::JsonObjectScope &object, const td_api::UpgradedGiftAttributeRarity *rarity);
+
+  static void json_store_style(td::JsonObjectScope &object, const td_api::ButtonStyle *style, bool for_rich_message);
+
+  static void json_store_inline_keyboard_button_type(td::JsonObjectScope &object,
+                                                     const td_api::InlineKeyboardButtonType *button_type,
+                                                     bool for_rich_message);
+
+  static void json_store_horizontal_alignment(td::JsonObjectScope &object,
+                                              const td_api::PageBlockHorizontalAlignment *alignment);
 
   void json_store_message_sender(td::JsonObjectScope &object, const object_ptr<td_api::MessageSender> &sender,
                                  td::Slice user_field_name, td::Slice chat_field_name,
@@ -1461,6 +1486,8 @@ class Client final : public WebhookActor::Callback {
 
   void add_update_subscription(object_ptr<td_api::updateUserSubscription> &&query);
 
+  void add_update_stopped_message_generation(object_ptr<td_api::updateStopMessageDraft> &&query);
+
   void add_new_custom_event(object_ptr<td_api::updateNewCustomEvent> &&event);
 
   void add_new_custom_query(object_ptr<td_api::updateNewCustomQuery> &&query);
@@ -1509,6 +1536,7 @@ class Client final : public WebhookActor::Callback {
     ManagedBot,
     GuestMessage,
     Subscription,
+    StopMessageDraft,
     Size
   };
 
@@ -1676,7 +1704,6 @@ class Client final : public WebhookActor::Callback {
   td::WaitFreeHashMap<int64, double> last_send_message_time_;
 
   struct BotUserIds {
-    int64 default_bot_user_id_ = 0;
     int64 cur_temp_bot_user_id_ = 1;
     td::FlatHashMap<td::string, int64> bot_user_ids_;
     td::FlatHashSet<td::string> unresolved_bot_usernames_;
@@ -1695,6 +1722,7 @@ class Client final : public WebhookActor::Callback {
   td::FlatHashMap<int64, int64> temp_to_real_bot_user_id_;
 
   td::string dir_;
+  td::string files_dir_;
   td::ActorOwn<td::ClientActor> td_client_;
   td::ActorContext context_;
   std::queue<PromisedQueryPtr> cmd_queue_;
