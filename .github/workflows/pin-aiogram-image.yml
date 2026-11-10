@@ -1,0 +1,41 @@
+name: Pin Aiogram compatible Docker image
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: pin-aiogram-image
+  cancel-in-progress: false
+
+jobs:
+  pin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify and pin the compatible release
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(cat .github/aiogram-bot-api-version)
+          [[ "$version" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          digest=$(docker buildx imagetools inspect "$image:$version" --format '{{.Manifest.Digest}}')
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          docker run --rm "$image@$digest" --version 2>&1 | tee /tmp/bot-api-version.txt
+          grep -Fx "Bot API $version" /tmp/bot-api-version.txt
+          docker buildx imagetools create --prefer-index=false --tag "$image:latest-aiogram" "$image@$digest"
+          pinned=$(docker buildx imagetools inspect "$image:latest-aiogram" --format '{{.Manifest.Digest}}')
+          test "$pinned" = "$digest"
+          echo "latest-aiogram pinned to $version ($digest)" >> "$GITHUB_STEP_SUMMARY"

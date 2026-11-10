@@ -12,6 +12,7 @@ the closed-source bot application is not included here.
 | Tag | Contents |
 | --- | --- |
 | `latest`, `master` | Latest successful `master` build; currently Bot API 10.4 |
+| `latest-aiogram` | Manually pinned Aiogram compatible release; currently Bot API 10.3 |
 | `10.3`, `v10.3` | Bot API 10.3 release |
 | `10.2`, `v10.2` | Bot API 10.2 release |
 | `10.1`, `v10.1` | Bot API 10.1 release |
@@ -186,3 +187,17 @@ Pull-request and fork builds cannot publish images.
 Based on [Telegram's Bot API server](https://github.com/tdlib/telegram-bot-api),
 licensed under the [Boost Software License 1.0](LICENSE_1_0.txt). The server's
 open-source license is separate from the closed-source Pinchana-bot application.
+
+### Aiogram compatibility tag
+
+`latest-aiogram` is a manually maintained compatibility tag, currently pinned to
+Bot API 10.3 for Pinchana-bot. Automatic master and release builds never move it.
+To advance it, edit `.github/aiogram-bot-api-version` to an already published
+numeric release, commit that change, and manually run:
+
+```sh
+gh workflow run pin-aiogram-image.yml
+```
+
+The workflow checks the binary version and copies the existing release image by
+digest. It does not rebuild the image or change `latest` or versioned tags.
