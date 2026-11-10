@@ -196,7 +196,7 @@ To advance it, edit `.github/aiogram-bot-api-version` to an already published
 numeric release, commit that change, and manually run:
 
 ```sh
-gh workflow run pin-aiogram-image.yml
+gh workflow run pin-aiogram-image.yml --repo Pinchana/telegram-bot-api
 ```
 
 The workflow checks the binary version and copies the existing release image by
