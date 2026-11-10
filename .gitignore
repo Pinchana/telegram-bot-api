@@ -3,3 +3,6 @@
 **/.DS_Store
 bin/
 vcpkg/
+.docker-bin/
+__pycache__/
+*.py[cod]

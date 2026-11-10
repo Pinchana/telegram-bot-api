@@ -1,0 +1,5 @@
+**
+!.docker-bin/
+!.docker-bin/telegram-bot-api
+!Dockerfile
+!LICENSE_1_0.txt

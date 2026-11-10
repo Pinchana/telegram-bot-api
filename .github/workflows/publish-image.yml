@@ -1,0 +1,113 @@
+name: Publish GHCR Docker image
+
+on:
+  workflow_run:
+    workflows: [Build Static Linux Binary]
+    types: [completed]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'all, master, or a release tag such as v10.3'
+        required: true
+        default: all
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  versions:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event != 'pull_request' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - id: matrix
+        name: Select release versions and trusted master binary
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version || 'all' }}
+        run: python3 .github/scripts/image_matrix.py
+
+  publish:
+    needs: versions
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.versions.outputs.matrix) }}
+    concurrency:
+      group: ghcr-${{ matrix.ref }}
+      cancel-in-progress: false
+    env:
+      DOCKER_BUILD_RECORD_UPLOAD: 'false'
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Download and verify compiled binary
+        env:
+          BINARY_KIND: ${{ matrix.kind }}
+          SOURCE_REF: ${{ matrix.ref }}
+          BUILD_RUN_ID: ${{ matrix.run_id }}
+          EXPECTED_DIGEST: ${{ matrix.digest }}
+          API_VERSION: ${{ matrix.version }}
+        run: |
+          mkdir -p .docker-bin
+          if [ "$BINARY_KIND" = release ]; then
+            gh release download "$SOURCE_REF" --repo "$GH_REPO" --pattern telegram-bot-api --dir .docker-bin
+            printf '%s  %s\n' "${EXPECTED_DIGEST#sha256:}" .docker-bin/telegram-bot-api | sha256sum --check
+          else
+            gh run download "$BUILD_RUN_ID" --repo "$GH_REPO" --name telegram-bot-api-linux-x86_64 --dir .docker-bin
+          fi
+          chmod 0755 .docker-bin/telegram-bot-api
+          .docker-bin/telegram-bot-api --version 2>&1 | tee /tmp/bot-api-version.txt
+          grep -F "Bot API ${API_VERSION%%-*}" /tmp/bot-api-version.txt
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and smoke-test runtime image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          platforms: linux/amd64
+          tags: pinchana-bot-api:test
+          build-args: |
+            TELEGRAM_BOT_API_VERSION=${{ matrix.version }}
+            TELEGRAM_BOT_API_REVISION=${{ matrix.sha }}
+      - name: Verify image runs as non-root and reports its version
+        env:
+          API_VERSION: ${{ matrix.version }}
+        run: |
+          test "$(docker run --rm --entrypoint id pinchana-bot-api:test -u)" = 1000
+          docker run --rm pinchana-bot-api:test --version 2>&1 | grep -F "Bot API ${API_VERSION%%-*}"
+          docker run --rm --entrypoint bash pinchana-bot-api:test -c 'test -w /var/lib/telegram-bot-api && test -w /var/lib/telegram-bot-api/temp'
+      - name: Publish verified image to GHCR
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          tags: ${{ matrix.tags }}
+          build-args: |
+            TELEGRAM_BOT_API_VERSION=${{ matrix.version }}
+            TELEGRAM_BOT_API_REVISION=${{ matrix.sha }}

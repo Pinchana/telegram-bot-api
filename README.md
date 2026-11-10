@@ -6,6 +6,43 @@ If you've got any questions about bots or would like to report an issue with you
 
 Please note that only global Bot API issues that affect all bots are suitable for this repository.
 
+## Pinchana GHCR image
+
+Prebuilt Linux x86-64 images are published to `ghcr.io/pinchana/telegram-bot-api`:
+
+- `latest` and `master`: the latest successful trusted build from `master`.
+- `sha-COMMIT`: the corresponding source commit (12 hexadecimal characters).
+- `10.1` / `v10.1`, `10.2` / `v10.2`, `10.3` / `v10.3`: matching tagged releases.
+  Every version tag with a verified release binary is supported by the publisher.
+
+The non-root image uses UID/GID 1000 and listens on port **9998** in `--local`
+mode. Supply your own `TELEGRAM_API_ID` and `TELEGRAM_API_HASH` from
+[my.telegram.org](https://my.telegram.org). These credentials are not in the image.
+
+```sh
+docker run --rm --init \
+  -p 127.0.0.1:9998:9998 \
+  -e TELEGRAM_API_ID -e TELEGRAM_API_HASH \
+  -v telegram-bot-api-data:/var/lib/telegram-bot-api \
+  ghcr.io/pinchana/telegram-bot-api:latest
+```
+
+Command arguments override the default server options. Keep the service private;
+it is intended for trusted bot clients and is not an authenticated public gateway.
+
+`Publish GHCR Docker image` automatically follows successful binary builds and
+published releases. It can also publish all existing version tags plus master:
+
+```sh
+gh workflow run publish-image.yml -f version=all
+```
+
+Release binaries are verified against their GitHub SHA-256 digests. Images are
+smoke-tested before publication; pull-request and fork builds cannot publish.
+Historical releases never overwrite `latest`. The publisher uses `GITHUB_TOKEN`
+with `packages: write`; no registry password secret is required. Docker build
+record artifacts are disabled to avoid filling Actions artifact storage.
+
 ## Table of Contents
 - [Installation](#installation)
 - [Dependencies](#dependencies)
