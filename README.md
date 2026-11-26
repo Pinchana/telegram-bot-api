@@ -11,8 +11,9 @@ the closed-source bot application is not included here.
 
 | Tag | Contents |
 | --- | --- |
-| `latest`, `master` | Latest successful `master` build; currently Bot API 10.4 |
-| `latest-aiogram` | Manually pinned Aiogram compatible release; currently Bot API 10.4 |
+| `latest`, `master` | Latest successful `master` build; currently Bot API 10.5 |
+| `latest-aiogram` | Manually pinned Aiogram compatible release; currently Bot API 10.5 |
+| `10.5`, `v10.5` | Bot API 10.5 release |
 | `10.4`, `v10.4` | Bot API 10.4 release |
 | `10.3`, `v10.3` | Bot API 10.3 release |
 | `10.2`, `v10.2` | Bot API 10.2 release |
@@ -176,7 +177,7 @@ Maintainers can publish every available version tag plus the latest successful
 
 ```sh
 gh workflow run publish-image.yml -f version=all
-gh workflow run publish-image.yml -f version=v10.4
+gh workflow run publish-image.yml -f version=v10.5
 ```
 
 Historical release images never replace `latest`. Publishing uses the workflow's
@@ -192,8 +193,8 @@ open-source license is separate from the closed-source Pinchana-bot application.
 ### Aiogram compatibility tag
 
 `latest-aiogram` is a manually maintained compatibility tag, currently pinned to
-Bot API 10.4 for Pinchana-bot (supported by Aiogram 3.32+). Automatic master and
-release builds never move it.
+Bot API 10.5 for Pinchana-bot (fully supported by Aiogram 3.34+). Automatic
+master and release builds never move it.
 To advance it, edit `.github/aiogram-bot-api-version` to an already published
 numeric release, commit that change, and manually run:
 
